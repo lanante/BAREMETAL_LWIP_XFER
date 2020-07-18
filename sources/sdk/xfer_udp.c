@@ -35,15 +35,20 @@
 #include "xfer_udp.h"
 
 extern struct netif server_netif;
-static struct udp_pcb *pcb;
+extern uint8_t rx_flag;
+extern uint8_t tx_flag;
+
+struct udp_pcb *pcb;
 static struct perf_stats server;
 /* Report interval in ms */
 #define REPORT_INTERVAL_TIME (INTERIM_REPORT_INTERVAL * 1000)
 
 static uint8_t PID;
 static uint8_t BITMAP[8192];
+uint32_t TX_DUMMY[65536];
 
-enum{XFER_ST, XFER_DATA, XFER_BAR, XFER_BA};
+enum{XFER_ST, XFER_DATA, XFER_BAR, XFER_BA,XFER_REQ,XFER_END};
+enum{IDLE, WAIT, SEND_DATA, SEND_BAR, END};
 
 static void reset_bitmap(void)
 {
@@ -53,6 +58,16 @@ for (i=0;i<8192;i++)
 	BITMAP[i]=0;
 }
 }
+
+static void set_bitmap(uint32_t *REQBITMAP,uint16_t tot_len)
+{
+	uint16_t i;
+for (i=0;i<tot_len;i++)
+{
+	BITMAP[i]=REQBITMAP[i];
+}
+}
+
 
 static uint8_t isbitmap_full(uint16_t NUM_SEG)
 {
@@ -76,25 +91,49 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb,
     uint8_t CMD=0;
     uint16_t SEG_NUM=0;
 	static uint16_t NUM_SEG=0;
-	struct pbuf * pBA_H;
-	struct pbuf * pBA_D;
+	struct pbuf * pH;
+	struct pbuf * pD;
+     uint16_t i=0;
 
 uint8_t MASK;
 uint16_t INDEX;
 uint8_t BYTEMAP;
 uint32_t BA_HEADER=0x00000003;
+uint32_t REQ_HEADER=0x00000004;
+uint32_t END_HEADER=0x00000005;
 
 	PKT = p->payload;
 	CMD=PKT[0];
 
 	switch (CMD)
 	{
+	case XFER_REQ:
+		set_bitmap(&PKT[4],p->tot_len);
+		pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
+		pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t)*8192, PBUF_RAM);
+	    memcpy(pH->payload, &REQ_HEADER, sizeof(uint32_t));
+		for (i=0;i<p->tot_len;i++)
+		{
+			pD->payload=TX_DUMMY;
+		    pbuf_cat(pH,pD);
+		    udp_sendto(tpcb, pH, addr, port);  //SEND BA
+		}
+		pbuf_free(pH);
+
+		//SEND RX_END
+		pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
+	    memcpy(pH->payload, &END_HEADER, sizeof(uint32_t));
+	    udp_sendto(tpcb, pH, addr, port);  //SEND BA
+		pbuf_free(pH);
+
+
+		pbuf_free(p);
+		break;
 	case XFER_ST: // XFER_ST
 		NUM_SEG=(PKT[0] >> 16) & 0x0000FFFF;
 		reset_bitmap();
 		udp_sendto(tpcb, p, addr, port);  //SEND ACK
 		pbuf_free(p);
-
 		break;
 	case XFER_DATA: //DATA
 		SEG_NUM=(PKT[0] >> 16) & 0x0000FFFF;
@@ -107,19 +146,20 @@ uint32_t BA_HEADER=0x00000003;
 		break;
 
 	case XFER_BAR: //BAR
-		pBA_H = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
-		pBA_D = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t)*8192, PBUF_RAM);
+		pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
+		pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t)*8192, PBUF_RAM);
 
-	    memcpy(pBA_H->payload, &BA_HEADER, sizeof(uint32_t));
-	    pBA_D->payload=BITMAP;
-	    pbuf_cat(pBA_H,pBA_D);
-	    udp_sendto(tpcb, pBA_H, addr, port);  //SEND BA
+	    memcpy(pH->payload, &BA_HEADER, sizeof(uint32_t));
+	    pD->payload=BITMAP;
+	    pbuf_cat(pH,pD);
+	    udp_sendto(tpcb, pH, addr, port);  //SEND BA
 		pbuf_free(p);
-		pbuf_free(pBA_H);
+		pbuf_free(pH);
 
 		break;
 
 	}
+
 
 
 
@@ -129,7 +169,7 @@ uint32_t BA_HEADER=0x00000003;
 void start_application(void)
 {
 	err_t err;
-
+uint16_t i;
 	/* Create Server PCB */
 	pcb = udp_new();
 	if (!pcb) {
@@ -147,6 +187,11 @@ void start_application(void)
 
 	/* specify callback to use for incoming connections */
 	udp_recv(pcb, udp_recv_cb, NULL);
+
+	for (i=0;i<65536;i++)
+	{
+		TX_DUMMY[i]=i;
+	}
 
 	return;
 }

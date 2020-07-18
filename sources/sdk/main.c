@@ -41,8 +41,8 @@
 #include "lwip/init.h"
 #include "lwip/inet.h"
 #include "xil_cache.h"
-
-
+#include "xtime_l.h"
+#include "lwip/udp.h"
 
 extern volatile int TcpFastTmrFlag;
 extern volatile int TcpSlowTmrFlag;
@@ -56,9 +56,10 @@ void start_application(void);
 void print_app_header(void);
 
 
-
+extern struct udp_pcb *pcb;
 struct netif server_netif;
-
+uint8_t rx_flag=0;
+uint8_t tx_flag=0;
 static void print_ip(char *msg, ip_addr_t *ip)
 {
 	print(msg);
@@ -139,7 +140,29 @@ int main(void)
 	start_application();
 	xil_printf("\r\n");
 
+XTime tNow,tDiff,tPrev;
+
+uint32_t XFER_ST=0x0000FFFF;
+struct pbuf *p;
+    p = pbuf_alloc(PBUF_TRANSPORT, sizeof(XFER_ST), PBUF_RAM);
+    memcpy(p->payload, &XFER_ST, sizeof(XFER_ST));
 	while (1) {
+
+		XTime_GetTime(&tNow);
+		tDiff=((tNow - tPrev) / (COUNTS_PER_SECOND/1000000));
+
+		if (tDiff>1000000)
+		{
+			tPrev=tNow;
+			if (rx_flag==0 && tx_flag==0)
+			{
+				udp_sendto(pcb, p, IP_ADDR_BROADCAST, 7);
+				rx_flag=1;
+			}
+		}
+
+
+
 		if (TcpFastTmrFlag) {
 			tcp_fasttmr();
 			TcpFastTmrFlag = 0;
