@@ -51,6 +51,9 @@ extern volatile int TcpSlowTmrFlag;
 #define DEFAULT_IP_MASK		"255.255.255.0"
 #define DEFAULT_GW_ADDRESS	"192.168.1.1"
 
+#define DEFAULT_MASTER_IP_ADDRESS	"192.168.1.3"
+
+
 void platform_enable_interrupts(void);
 void start_application(void);
 void print_app_header(void);
@@ -141,11 +144,13 @@ int main(void)
 	xil_printf("\r\n");
 
 XTime tNow,tDiff,tPrev;
-
-uint32_t XFER_ST=0x0000FFFF;
+ip_addr_t ipaddr;
+uint32_t XFER_ST=0xABCD0000;
 struct pbuf *p;
     p = pbuf_alloc(PBUF_TRANSPORT, sizeof(XFER_ST), PBUF_RAM);
     memcpy(p->payload, &XFER_ST, sizeof(XFER_ST));
+    IP4_ADDR(&ipaddr, 192, 168, 1, 3);
+
 	while (1) {
 
 		XTime_GetTime(&tNow);
@@ -154,11 +159,13 @@ struct pbuf *p;
 		if (tDiff>1000000)
 		{
 			tPrev=tNow;
-			if (rx_flag==0 && tx_flag==0)
-			{
-				udp_sendto(pcb, p, IP_ADDR_BROADCAST, 7);
+		    p = pbuf_alloc(PBUF_TRANSPORT, sizeof(XFER_ST), PBUF_RAM);
+		    memcpy(p->payload, &XFER_ST, sizeof(XFER_ST));
+		    IP4_ADDR(&ipaddr, 192, 168, 1, 3);
+				udp_sendto(pcb, p, &ipaddr, 7);
 				rx_flag=1;
-			}
+				pbuf_free(p);
+
 		}
 
 

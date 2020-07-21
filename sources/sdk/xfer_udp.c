@@ -45,7 +45,7 @@ static struct perf_stats server;
 
 static uint8_t PID;
 static uint8_t BITMAP[8192];
-uint32_t TX_DUMMY[65536];
+static uint32_t TX_DUMMY[1024];
 
 enum{XFER_ST, XFER_DATA, XFER_BAR, XFER_BA,XFER_REQ,XFER_END};
 enum{IDLE, WAIT, SEND_DATA, SEND_BAR, END};
@@ -68,6 +68,16 @@ for (i=0;i<tot_len;i++)
 }
 }
 
+static uint32_t count_bitmap(void )
+{
+	uint32_t i,SUM=0;
+for (i=0;i<65536;i++)
+{
+	if (BITMAP[i]==1)
+		SUM++;
+}
+return SUM;
+}
 
 static uint8_t isbitmap_full(uint16_t NUM_SEG)
 {
@@ -93,7 +103,7 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb,
 	static uint16_t NUM_SEG=0;
 	struct pbuf * pH;
 	struct pbuf * pD;
-     uint16_t i=0;
+     uint32_t i=0,j=0;
 
 uint8_t MASK;
 uint16_t INDEX;
@@ -101,7 +111,9 @@ uint8_t BYTEMAP;
 uint32_t BA_HEADER=0x00000003;
 uint32_t REQ_HEADER=0x00000004;
 uint32_t END_HEADER=0x00000005;
-
+uint32_t DATA_HEADER=0x00000001;
+uint32_t HEADER;
+uint32_t BITMAP_SIZE;
 	PKT = p->payload;
 	CMD=PKT[0];
 
@@ -109,18 +121,35 @@ uint32_t END_HEADER=0x00000005;
 	{
 	case XFER_REQ:
 		set_bitmap(&PKT[4],p->tot_len);
-		pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
-		pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t)*8192, PBUF_RAM);
-	    memcpy(pH->payload, &REQ_HEADER, sizeof(uint32_t));
-		for (i=0;i<p->tot_len;i++)
+
+	 //   memcpy(pH->payload, &REQ_HEADER, sizeof(uint32_t));
+	 //   memcpy(pD->payload, TX_DUMMY, sizeof(uint32_t)*100);
+	  //  pbuf_cat(pH,pD);
+		NUM_SEG=(PKT[0] >> 16) & 0x0000FFFF;
+
+
+		for (i=0;i<NUM_SEG;i++)
 		{
-			pD->payload=TX_DUMMY;
-		    pbuf_cat(pH,pD);
-		    udp_sendto(tpcb, pH, addr, port);  //SEND BA
-		}
-		pbuf_free(pH);
+			SEG_NUM=i;
+			INDEX=SEG_NUM/8;
+			MASK=1<<(SEG_NUM%8);
+			BYTEMAP=BITMAP[INDEX] & (MASK);
+				if (BYTEMAP==0)
+				{
+					HEADER=(DATA_HEADER&0x0000FFFF) | ((SEG_NUM << 16)&0xFFFF0000);
+					pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
+					pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t)*1024, PBUF_RAM);
+					memcpy(pH->payload, &HEADER, sizeof(uint32_t));
+					 memcpy(pD->payload, TX_DUMMY, sizeof(uint32_t)*1024);
+						pbuf_cat(pH,pD);
+				    udp_sendto(tpcb, pH, addr, port);  //SEND BA
+					pbuf_free(pH);
+
+				}
+			}
 
 		//SEND RX_END
+		pbuf_free(pH);
 		pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
 	    memcpy(pH->payload, &END_HEADER, sizeof(uint32_t));
 	    udp_sendto(tpcb, pH, addr, port);  //SEND BA
@@ -169,7 +198,7 @@ uint32_t END_HEADER=0x00000005;
 void start_application(void)
 {
 	err_t err;
-uint16_t i;
+uint32_t i;
 	/* Create Server PCB */
 	pcb = udp_new();
 	if (!pcb) {
@@ -188,7 +217,7 @@ uint16_t i;
 	/* specify callback to use for incoming connections */
 	udp_recv(pcb, udp_recv_cb, NULL);
 
-	for (i=0;i<65536;i++)
+	for (i=0;i<1024;i++)
 	{
 		TX_DUMMY[i]=i;
 	}
