@@ -24,6 +24,7 @@ regenbsp -bsp bsp
 
 sdk createapp -name sw -app {Empty Application} -hwproject hw -proc ps7_cortexa9_0 -lang c -bsp bsp
 configapp -app sw -set build-config debug
+configapp -app sw -add include-path  ../src/
 importsources -name sw -linker-script -path sources/sdk
 
 
