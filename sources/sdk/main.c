@@ -122,7 +122,6 @@ int main(void) {
   }
 
   /* never reached */
-  cleanup_platform();
 
   return 0;
 }
