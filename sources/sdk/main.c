@@ -36,7 +36,6 @@
 #include "lwip/udp.h"
 #include "lwipopts.h"
 #include "netif/xadapter.h"
-#include "platform.h"
 #include "sleep.h"
 #include "xfer_udp.h"
 #include "xil_cache.h"
@@ -82,8 +81,6 @@ int main(void) {
          &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
   netif = &server_netif;
 
-  init_platform();
-
   /* initialize lwIP */
   lwip_init();
 
@@ -93,9 +90,6 @@ int main(void) {
     return -1;
   }
   netif_set_default(netif);
-
-  /* now enable interrupts */
-  platform_enable_interrupts();
 
   /* specify that the network if is up */
   netif_set_up(netif);

@@ -39,7 +39,6 @@
 #include "lwip/udp.h"
 #include "lwip/inet.h"
 #include "xil_printf.h"
-#include "platform.h"
 
 enum { XFER_START, XFER_DATA, XFER_BAR, XFER_BA, XFER_REQ, XFER_END,XFER_STATE,TX_ST };
 enum { IDLE, WAIT, SEND_DATA, SEND_BAR, END };
