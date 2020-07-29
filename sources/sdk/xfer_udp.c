@@ -35,13 +35,13 @@
 #include "xfer_udp.h"
 #include "math.h"
 #define MAX_SEGMENTS 65536
-#define SEGMENT_SIZE 8192
+#define SEGMENT_SIZE 4096
 #define MAX_BURST 512
 
 extern struct netif server_netif;
-uint8_t xfer_state;
-ip_addr_t remote_host_ipaddr;
-uint16_t remote_host_port;
+extern uint8_t rx_lock;
+uint8_t xfer_state=XFER_STATE_INIT;
+
 struct udp_pcb *pcb;
 
 static uint8_t received_segment_bitmap[MAX_SEGMENTS / 8];
@@ -86,17 +86,19 @@ static uint16_t set_req_segs_ptr(uint32_t *req_seg_bitmap,
 void udp_xfer_send(uint32_t *payload, uint32_t xfer_size) {
   struct pbuf *p;
   p = pbuf_alloc(PBUF_TRANSPORT, xfer_size, PBUF_RAM);
-  p->payload = payload;
-  udp_sendto(pcb, p, &remote_host_ipaddr, DEFAULT_REMOTE_HOST_PORT);
+  memcpy(p->payload, payload, xfer_size);
+  udp_send(pcb, p);
 
   pbuf_free(p);
 }
+
 /** Receive data on a udp session */
 static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
                         const ip_addr_t *addr, u16_t port) {
   uint32_t *payload_ptr;
   uint8_t cmd = 0;
   uint16_t seg_num = 0;
+
   static uint16_t num_seg = 0;
   struct pbuf *pH;
   struct pbuf *pD;
@@ -126,8 +128,8 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
       pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
       pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t) * SEGMENT_SIZE / 4,
                       PBUF_RAM);
-      pH->payload = &header;
-      pD->payload = tx_dummy;
+      memcpy(pH->payload, &header, sizeof(header));
+      memcpy(pD->payload, tx_dummy, sizeof(tx_dummy));
       pbuf_cat(pH, pD);
       udp_sendto(tpcb, pH, addr, port); // SEND BA
       pbuf_free(pH);
@@ -141,74 +143,78 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
     udp_sendto(tpcb, pH, addr, port); // SEND BA
     pbuf_free(pH);
     free(req_segs_ptr);
-
-    pbuf_free(p);
     break;
   case XFER_START: // XFER_START
+	  if (p->tot_len==sizeof(uint32_t)){
     num_seg = (payload_ptr[0] >> 16) & 0x0000FFFF;
     reset_rcv_bitmap();
     udp_sendto(tpcb, p, addr, port); // SEND ACK
-    pbuf_free(p);
+	  }
     break;
   case XFER_DATA: // DATA
     seg_num = (payload_ptr[0] >> 16) & 0x0000FFFF;
     mask = 1 << (seg_num % 8);
     index = seg_num / 8;
     received_segment_bitmap[index] = received_segment_bitmap[index] | (mask);
-    pbuf_free(p);
     break;
   case TX_ST:
     udp_sendto(tpcb, p, addr, port); // SEND BA
-    pbuf_free(p);
   case XFER_BAR: // BAR
     pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
-    pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t) * 8192, PBUF_RAM);
+    pD = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint8_t) * 8192, PBUF_RAM);
     header = XFER_BA;
     memcpy(pH->payload, &header, sizeof(uint32_t));
     pD->payload = received_segment_bitmap;
     pbuf_cat(pH, pD);
     udp_sendto(tpcb, pH, addr, port); // SEND BA
-    pbuf_free(p);
     pbuf_free(pH);
     break;
   case XFER_STATE: // XFER_STATE
-    xfer_state = (payload_ptr[0] >> 24) & 0x000000FF;
+  if (p->tot_len==sizeof(uint32_t))
+  {xfer_state = (payload_ptr[0] >> 24) & 0x000000FF;
     udp_sendto(tpcb, p, addr, port); // SEND ACK
-    pbuf_free(p);
-    remote_host_ipaddr = *addr;
-    remote_host_port = port;
-    break;
+  pcb=tpcb;
+  udp_connect(pcb,addr,port);
+  rx_lock=0;
+
   }
+
+    break;
+  default:
+	    break;
+
+  }
+  pbuf_free(p);
 
   return;
 }
 
-void start_application(ip_addr_t local_device_ipaddr, uint16_t port) {
-  err_t err;
-  uint32_t i;
-  /* Create Server PCB */
-  pcb = udp_new();
-  if (!pcb) {
-    xil_printf("UDP server: Error creating PCB. Out of Memory\r\n");
-    return;
-  }
 
-  err = udp_bind(pcb, &local_device_ipaddr, port);
-  if (err != ERR_OK) {
-    xil_printf("UDP server: Unable to bind to port");
-    xil_printf(" %d: err = %d\r\n", port, err);
-    udp_remove(pcb);
-    return;
-  }
+void start_application(void)
+{
+	err_t err;
+uint32_t i;
+	/* Create Server PCB */
+	pcb = udp_new();
+	if (!pcb) {
+		xil_printf("UDP server: Error creating PCB. Out of Memory\r\n");
+		return;
+	}
 
-  /* specify callback to use for incoming connections */
-  udp_recv(pcb, udp_recv_cb, NULL);
-  inet_aton(DEFAULT_REMOTE_HOST_IP, &remote_host_ipaddr);
-  remote_host_port = DEFAULT_REMOTE_HOST_PORT;
+	err = udp_bind(pcb, IP_ADDR_ANY, UDP_CONN_PORT);
+	if (err != ERR_OK) {
+		xil_printf("UDP server: Unable to bind to port");
+		xil_printf(" %d: err = %d\r\n", UDP_CONN_PORT, err);
+		udp_remove(pcb);
+		return;
+	}
 
-  for (i = 0; i < SEGMENT_SIZE / 4; i++) {
-    tx_dummy[i] = i;
-  }
+	/* specify callback to use for incoming connections */
+	udp_recv(pcb, udp_recv_cb, NULL);
 
-  return;
+	  for (i = 0; i < SEGMENT_SIZE / 4; i++) {
+	    tx_dummy[i] = i;
+	  }
+
+	return;
 }

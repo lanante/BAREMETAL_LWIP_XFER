@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2017 Xilinx, Inc.  All rights reserved.
+* Copyright (C) 2009 - 2017 Xilinx, Inc.  All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -30,37 +30,15 @@
 *
 ******************************************************************************/
 
-#ifndef __UDP_PERF_SERVER_H_
-#define __UDP_PERF_SERVER_H_
+#ifndef __PLATFORM_H_
+#define __PLATFORM_H_
 
-#include "lwipopts.h"
-#include "lwip/ip_addr.h"
-#include "lwip/err.h"
-#include "lwip/udp.h"
-#include "lwip/inet.h"
-#include "xil_printf.h"
-#include "platform.h"
-
-enum { XFER_START, XFER_DATA, XFER_BAR, XFER_BA, XFER_REQ, XFER_END,XFER_STATE,TX_ST };
-enum { IDLE, WAIT, SEND_DATA, SEND_BAR, END };
-enum { XFER_STATE_INIT, XFER_STATE_TX, XFER_STATE_RX};
-extern uint8_t xfer_state;
-extern struct udp_pcb *pcb;
-extern void udp_xfer_send(uint32_t *payload,uint32_t xfer_size);
-extern void start_application(void);
-/* server port to listen on/connect to */
-#define DEFAULT_REMOTE_HOST_IP "192.168.0.2"
-#define DEFAULT_REMOTE_HOST_PORT 7
-
-
-
-
-
-
-/* seconds between periodic bandwidth reports */
-#define INTERIM_REPORT_INTERVAL 5
-
-/* server port to listen on/connect to */
-#define UDP_CONN_PORT 5001
-
-#endif /* __UDP_PERF_SERVER_H_ */
+void init_platform();
+void cleanup_platform();
+#ifdef __MICROBLAZE__
+void timer_callback();
+#endif
+void platform_setup_timer();
+void platform_enable_interrupts();
+u64_t get_time_ms();
+#endif
