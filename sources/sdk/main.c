@@ -149,7 +149,7 @@ XTime tNow,tDiff,tPrev;
 ip_addr_t ipaddr;
 uint32_t payload;
 
- uint32_t rx_dummy_num_seg = 1000;
+ uint32_t rx_dummy_num_seg = 400;
  payload = (XFER_START & 0x0000FFFF) | ((rx_dummy_num_seg << 16) & 0xFFFF0000);
 
 

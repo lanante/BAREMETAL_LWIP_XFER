@@ -34,9 +34,11 @@
 
 #include "xfer_udp.h"
 #include "math.h"
+#include "sleep.h"
+
 #define MAX_SEGMENTS 65536
-#define SEGMENT_SIZE 4096
-#define MAX_BURST 512
+#define SEGMENT_SIZE 8188
+//#define MAX_BURST 128
 
 extern struct netif server_netif;
 extern uint8_t rx_lock;
@@ -75,9 +77,6 @@ static uint16_t set_req_segs_ptr(uint32_t *req_seg_bitmap,
     if (data) {
       req_segs_ptr[j] = i;
       j++;
-      if (j >= MAX_BURST) {
-        return j;
-      }
     }
   }
   return j;
@@ -108,6 +107,7 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
   uint16_t offset;
   uint32_t header;
   uint16_t burst_length;
+  uint16_t delay=0;
 
   payload_ptr = p->payload;
   cmd = payload_ptr[0];
@@ -115,10 +115,12 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
   switch (cmd) {
   case XFER_REQ:
     num_seg = (payload_ptr[0] >> 16) & 0x0000FFFF;
-    req_segs_ptr = malloc(sizeof(uint16_t) * MAX_BURST);
+    delay = ((payload_ptr[0] >> 8) & 0xFF)*64;
+
+    req_segs_ptr = malloc(sizeof(uint16_t) * num_seg);
     burst_length = set_req_segs_ptr(&payload_ptr[1], req_segs_ptr, num_seg);
 
-    for (uint32_t i = 0; i < burst_length; i++) {
+    for (uint32_t i = 0; i < burst_length;i++ ) {
       seg_num = req_segs_ptr[i];
       index = seg_num / 8;
       offset = (seg_num % 8);
@@ -133,16 +135,17 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
       pbuf_cat(pH, pD);
       udp_sendto(tpcb, pH, addr, port); // SEND BA
       pbuf_free(pH);
+      usleep(delay);
     }
 
-    // SEND RX_END
+   /* // SEND RX_END
     pbuf_free(pH);
     pH = pbuf_alloc(PBUF_TRANSPORT, sizeof(uint32_t), PBUF_RAM);
     header = XFER_END;
     memcpy(pH->payload, &header, sizeof(uint32_t));
     udp_sendto(tpcb, pH, addr, port); // SEND BA
     pbuf_free(pH);
-    free(req_segs_ptr);
+    free(req_segs_ptr);*/
     break;
   case XFER_START: // XFER_START
 	  if (p->tot_len==sizeof(uint32_t)){
@@ -155,7 +158,8 @@ static void udp_recv_cb(void *arg, struct udp_pcb *tpcb, struct pbuf *p,
     seg_num = (payload_ptr[0] >> 16) & 0x0000FFFF;
     mask = 1 << (seg_num % 8);
     index = seg_num / 8;
-    received_segment_bitmap[index] = received_segment_bitmap[index] | (mask);
+    received_segment_bitmap[index] = received_segment_bitmap[index] + (mask);
+
     break;
   case TX_ST:
     udp_sendto(tpcb, p, addr, port); // SEND BA
