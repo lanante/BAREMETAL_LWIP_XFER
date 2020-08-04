@@ -17,8 +17,8 @@ u.LocalPort=5002;
 u.RemoteHost='192.168.1.10';
 u.RemotePort=5001;
 u.DatagramTerminateMode='off';
-u.InputBufferSize=(XFER_PAR.SEGMENT_SIZE+4)*XFER_PAR.MAX_BURST*64;
-u.OutputBufferSize=(XFER_PAR.SEGMENT_SIZE+4)*4;
+u.InputBufferSize=(XFER_PAR.SEGMENT_SIZE+4)*XFER_PAR.MAX_BURST*2;
+u.OutputBufferSize=(XFER_PAR.SEGMENT_SIZE+4)*2;
 fopen(u);
 
 
@@ -116,7 +116,6 @@ while (1)
                             NUM_SEGS=payload(4)*256+payload(3);
                             BITMAP=zeros(1,8*ceil(NUM_SEGS/8)); %Total Number of SEGMENTS TO REQUEST
                             next_state=XFER_STATE.DATA;
-                            TOTAL_RX_SIZE=NUM_SEGS*XFER_PAR.SEGMENT_SIZE;
                             tic
                             break;
                         else
@@ -128,7 +127,8 @@ while (1)
             case XFER_STATE.DATA
                 payload=zeros(1,NUM_SEGS*XFER_PAR.SEGMENT_SIZE);
                 NUM_BURST=NUM_SEGS-sum(BITMAP);
-                    udp_xfer_send(u,XFER_CMD.REQ,NUM_SEGS,0,0,~BITMAP,0,round(1200/64));
+%                 NUM_BURST=100;
+                    udp_xfer_send(u,XFER_CMD.REQ,NUM_SEGS,0,0,~BITMAP,0,13); %delay in 100us
                     i=0;
 tic
                     while(i<NUM_BURST)
@@ -141,6 +141,8 @@ i=i+1;
 
                 RX_XFER_TIME=toc;
                 next_state=XFER_STATE.IDLE;
+                                            TOTAL_RX_SIZE=NUM_BURST*XFER_PAR.SEGMENT_SIZE;
+
 disp(['UL rate is ' num2str(TOTAL_RX_SIZE/(RX_XFER_TIME)*8/1e6) ' Mbps'])
 % break;
 TX=1;

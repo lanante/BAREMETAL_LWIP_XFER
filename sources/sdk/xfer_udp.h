@@ -48,6 +48,7 @@ extern uint8_t xfer_state;
 extern struct udp_pcb *pcb;
 extern void udp_xfer_send(uint32_t *payload,uint32_t xfer_size);
 extern void start_application(void);
+extern void transfer_data(void );
 /* server port to listen on/connect to */
 #define DEFAULT_REMOTE_HOST_IP "192.168.0.2"
 #define DEFAULT_REMOTE_HOST_PORT 7

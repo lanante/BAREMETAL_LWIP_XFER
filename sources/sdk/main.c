@@ -173,16 +173,10 @@ uint32_t payload;
 		        udp_xfer_send(&payload, sizeof(payload));
 		        rx_lock=1;
 		      }
-	//	    p = pbuf_alloc(PBUF_TRANSPORT, sizeof(XFER_ST), PBUF_RAM);
-	//	    memcpy(p->payload, &XFER_ST, sizeof(XFER_ST));
-	//	    IP4_ADDR(&ipaddr, 192, 168, 1, 3);
-//				udp_sendto(pcb, p, &ipaddr, 7);
-//				rx_flag=1;
-//				pbuf_free(p);
 
 		}
 
-
+transfer_data();
 		xemacif_input(netif);
 	}
 
