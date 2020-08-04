@@ -51,7 +51,7 @@ extern volatile int TcpSlowTmrFlag;
 #define DEFAULT_IP_ADDRESS	"192.168.1.10"
 #define DEFAULT_IP_MASK		"255.255.255.0"
 #define DEFAULT_GW_ADDRESS	"192.168.1.1"
-
+#define DEFAULT_MAC_ADDRESS "00:0a:35:00:01:02"
 #define DEFAULT_MASTER_IP_ADDRESS	"192.168.1.3"
 
 
@@ -78,6 +78,13 @@ static void print_ip_settings(ip_addr_t *ip, ip_addr_t *mask, ip_addr_t *gw)
 	print_ip("Netmask :       ", mask);
 	print_ip("Gateway :       ", gw);
 }
+int str2mac(const char* mac, uint8_t* values){
+    if( 6 == sscanf( mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",&values[0], &values[1], &values[2],&values[3], &values[4], &values[5] ) ){
+        return 1;
+    }else{
+        return 0;
+    }
+}
 
 static void assign_default_ip(ip_addr_t *ip, ip_addr_t *mask, ip_addr_t *gw)
 {
@@ -103,12 +110,11 @@ int main(void)
 	struct netif *netif;
 
 	/* the mac address of the board. this should be unique per board */
-	unsigned char mac_ethernet_address[] = {
-		0x00, 0x0a, 0x35, 0x00, 0x01, 0x02 };
+unsigned char mac_ethernet_address[6];
 
 	netif = &server_netif;
 
-
+	str2mac(DEFAULT_MAC_ADDRESS, mac_ethernet_address);
 
 
 	init_platform();

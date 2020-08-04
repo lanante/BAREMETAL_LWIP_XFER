@@ -19,7 +19,6 @@ u.RemotePort=5001;
 u.DatagramTerminateMode='off';
 u.InputBufferSize=(XFER_PAR.SEGMENT_SIZE+4)*XFER_PAR.MAX_BURST*64;
 u.OutputBufferSize=(XFER_PAR.SEGMENT_SIZE+4)*4;
-% u.Timeout=2;
 fopen(u);
 
 
@@ -70,7 +69,6 @@ while (1)
                         SEG_NUM=tx_fragment_list(i);
                         DATA=TX_DATA((SEG_NUM-1)*XFER_PAR.SEGMENT_SIZE+1:SEG_NUM*XFER_PAR.SEGMENT_SIZE,:);
                         udp_xfer_send(u,XFER_CMD.DATA,0,DATA,SEG_NUM-1,0,0);
-%                         pause(0.01)
                     end
                     
                     %SEND BAR
@@ -130,7 +128,7 @@ while (1)
             case XFER_STATE.DATA
                 payload=zeros(1,NUM_SEGS*XFER_PAR.SEGMENT_SIZE);
                 NUM_BURST=NUM_SEGS-sum(BITMAP);
-                    udp_xfer_send(u,XFER_CMD.REQ,NUM_SEGS,0,0,~BITMAP,0,round(1000/64));
+                    udp_xfer_send(u,XFER_CMD.REQ,NUM_SEGS,0,0,~BITMAP,0,round(1200/64));
                     i=0;
 tic
                     while(i<NUM_BURST)
